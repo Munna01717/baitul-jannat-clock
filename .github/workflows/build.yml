@@ -6,18 +6,31 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Unzip project
-        run: |
-          for z in *.zip; do unzip -o "$z"; done
-          ls -R | head -40
+        run: for z in *.zip; do unzip -o "$z"; done
       - uses: actions/setup-java@v5
         with: {distribution: temurin, java-version: '17'}
       - uses: gradle/actions/setup-gradle@v5
         with: {gradle-version: '8.14.3'}
+      - name: Add mirror repositories
+        run: |
+          mkdir -p ~/.gradle/init.d
+          cat > ~/.gradle/init.d/mirror.gradle <<'EOF'
+          def mirrors = { r ->
+            r.maven { url 'https://maven-central.storage-download.googleapis.com/maven2/' }
+            r.google()
+            r.mavenCentral()
+          }
+          beforeSettings { s ->
+            mirrors(s.pluginManagement.repositories)
+            s.pluginManagement.repositories.gradlePluginPortal()
+          }
+          allprojects { mirrors(buildscript.repositories); mirrors(repositories) }
+          EOF
       - name: Build
         working-directory: BaitulJannatClock
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || true
-          gradle assembleDebug --stacktrace
+          gradle assembleDebug || (sleep 20 && gradle assembleDebug --refresh-dependencies)
       - uses: actions/upload-artifact@v5
         with:
           name: BaitulJannat-APK
